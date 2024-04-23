@@ -5,7 +5,7 @@ package src.pas.tetris.agents;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
-
+import java.util.concurrent.ExecutionException;
 
 // JAVA PROJECT IMPORTS
 import edu.bu.tetris.agents.QAgent;
@@ -80,15 +80,39 @@ public class TetrisQAgent
     public Matrix getQFunctionInput(final GameView game,
                                     final Mino potentialAction)
     {
-        Matrix flattenedImage = null;
-        try
-        {
-            flattenedImage = game.getGrayscaleImage(potentialAction).flatten();
-        } catch(Exception e)
-        {
+        Matrix grayScale = null;
+        try {
+            grayScale = game.getGrayscaleImage(potentialAction);
+        } catch (Exception e) {
             e.printStackTrace();
             System.exit(-1);
         }
+        
+        int rows = grayScale.getShape().getNumRows();
+        int cols = grayScale.getShape().getNumCols();
+
+        Matrix flattenedImage = Matrix.zeros(1, grayScale.getShape().getNumCols()); // Flattened image will ge the the height for each column
+        int maxHeight = 0; // Current tallest column 
+
+        for (int i = 0; i < cols; i ++) {
+            for (int j = 0; j < rows; j++) {
+                if (grayScale.get(i,j) != 0.0) {
+
+                    // Found top
+                    int height = rows - j;
+                    maxHeight = Math.max(maxHeight, height);
+                    flattenedImage.set(0, i, height);
+
+                    break;
+                }
+            }
+        }
+
+        // Loop through matrix and normalize
+        for (int i = 0; i < cols; i++) {
+            flattenedImage.set(0, i, flattenedImage.get(0, i) / maxHeight);
+        }
+
         return flattenedImage;
     }
 
