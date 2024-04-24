@@ -30,9 +30,10 @@ public class TetrisQAgent
     extends QAgent
 {
 
-    public static final double EXPLORATION_PROB = 0.05;
+    // public static final double EXPLORATION_PROB = 0.05;
 
     private Random random;
+    private int epochCount = 1; 
 
     public TetrisQAgent(String name)
     {
@@ -138,7 +139,10 @@ public class TetrisQAgent
     public boolean shouldExplore(final GameView game,
                                  final GameCounter gameCounter)
     {
-        return this.getRandom().nextDouble() <= EXPLORATION_PROB;
+
+        double rand = this.getRandom().nextDouble();
+        double prob = 1 / Math.pow(1.02, this.epochCount); // Decrease probability of exploration over time
+        return (rand < prob);
     }
 
     /**
