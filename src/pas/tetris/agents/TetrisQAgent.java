@@ -26,6 +26,7 @@ import edu.bu.tetris.nn.layers.Tanh;
 import edu.bu.tetris.nn.layers.Sigmoid;
 import edu.bu.tetris.training.data.Dataset;
 import edu.bu.tetris.utils.Pair;
+import edu.bu.tetris.game.Block;
 
 
 public class TetrisQAgent
@@ -36,6 +37,7 @@ public class TetrisQAgent
 
     private Random random;
     private int epochCount = 1; 
+    public static double previousReward = 0.0;
 
     public TetrisQAgent(String name)
     {
@@ -279,7 +281,117 @@ public class TetrisQAgent
     @Override
     public double getReward(final GameView game)
     {
-        return game.getScoreThisTurn();
+        /*
+        game is a matrix of the board state, 1 is a block being placed, 0.5 is a block that is not being placed, 0 is empty. 
+        
+        reward function takes into account the aggregate height of the tetris grid (i.e. the sum of the heights of every column),
+        the number of complete lines, the number of holes in the grid, and the "bumpiness" of the grid (i.e. the sum of the absolute differences in height between adjacent columns). 
+        The actual formula for this fitness function is:
+
+        - 0.51 x Height + 0.76 x Lines
+        - 0.36 x Holes - 0.18 x Bumpiness
+
+        And the reward was simply the change in this fitness function.
+        */
+
+        double currentReward = 0.0;
+        Board board = game.getBoard();
+
+        double height = 0.0;
+        // get aggregate height
+        for (int i = 0; i < board.NUM_COLS; i++) {
+            for (int j = 0; j < board.NUM_ROWS; j++) {
+                Block block = board.getBlockAt(i, j);
+
+                if (block != null) {
+                    height += (board.NUM_ROWS - j);
+                    break;
+                }
+            }
+        }
+
+        double lines = 0.0;
+        // get number of complete lines
+        for (int i = 0; i < board.NUM_ROWS; i++) {
+            boolean complete = true;
+            for (int j = 0; j < board.NUM_COLS; j++) {
+                Block block = board.getBlockAt(j, i);
+                if (block == null) {
+                    complete = false;
+                    break;
+                }
+            }
+
+            if (complete) {
+                lines++;
+            }
+        }
+
+        double holes = 0.0;
+        // get number of holes. A hole is defined as an empty space such that there is at least one tile in the same column above it.
+        for (int i = 0; i < board.NUM_COLS; i++) {
+            int top = 0;
+            int bottom = 1;
+            while (bottom < board.NUM_ROWS) {
+                Block block = board.getBlockAt(i, top);
+                Block blockBelow = board.getBlockAt(i, bottom);
+
+                if (block != null && blockBelow == null) {
+                    bottom++;
+                    holes++;
+                } else {
+                    top = bottom;
+                    bottom++;
+                }
+            }
+        }
+
+        // get bumpiness
+        double bumpiness = 0.0;
+        for (int i = 0; i < board.NUM_COLS - 1; i++) {
+            int height1 = 0;
+            int height2 = 0;
+
+            boolean found1 = false;
+            boolean found2 = false;
+
+            for (int j = 0; j < board.NUM_ROWS; j++) {
+                Block block1 = board.getBlockAt(i, j);
+                Block block2 = board.getBlockAt(i + 1, j);
+
+                if (block1 != null && !found1) {
+                    height1 = board.NUM_ROWS - j;
+                    found1 = true;
+                }
+
+                if (block2 != null && !found2) {
+                    height2 = board.NUM_ROWS - j;
+                    found2 = true;
+                }
+
+                if (found1 && found2) {
+                    break;
+                }
+            }
+
+            bumpiness += Math.abs(height1 - height2);
+        }
+
+        currentReward = -0.51 * height + 0.76 * lines - 0.36 * holes - 0.18 * bumpiness;
+
+        // reward is the change in the fitness function
+        double reward = currentReward - previousReward;
+
+        previousReward = currentReward;
+
+        // print all the features and the reward
+        System.out.print("Height: " + height);
+        System.out.print(" Lines: " + lines);
+        System.out.print(" Holes: " + holes);
+        System.out.print(" Bumpiness: " + bumpiness);
+        System.out.print(" Reward: " + reward);
+
+        return reward;
     }
 
 }
