@@ -6,6 +6,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
+import java.util.ArrayList;
+import java.util.HashMap;
 
 // JAVA PROJECT IMPORTS
 import edu.bu.tetris.agents.QAgent;
@@ -157,8 +159,60 @@ public class TetrisQAgent
     @Override
     public Mino getExplorationMove(final GameView game)
     {
-        int randIdx = this.getRandom().nextInt(game.getFinalMinoPositions().size());
-        return game.getFinalMinoPositions().get(randIdx);
+        /*
+         * TODO:
+         * -- Get all potentialActions
+         *    -- For each pAction, call getQFunctionInput()
+         *    -- Pass flattened matrix into qFuncition
+         *    -- Feed forwards and store in list
+         * -- Run Softmax
+         * -- Sort List
+         * -- Choose action based on softmax
+         */
+
+        Mino result = null;
+        List<Double> qValues = new ArrayList<Double>();
+        HashMap<Double, Mino> qValueToMino = new HashMap<Double, Mino>();
+        HashMap<Double, Mino> softmaxToMino = new HashMap<Double, Mino>();
+
+        for (Mino pAction: game.getFinalMinoPositions()) {
+
+            Matrix input = this.getQFunctionInput(game, pAction);
+
+            try {
+                Matrix qValue = this.getQFunction().forward(input);
+                qValues.add(qValue.get(0, 0));
+                qValueToMino.put(qValue.get(0, 0), pAction);
+            } catch (Exception e) {
+                e.printStackTrace();
+                System.exit(-1);
+            }
+
+        }
+
+        // Softmax the list
+        List<Double> softmax = new ArrayList<Double>();
+
+        double sum = 0.0;
+
+        for (double qValue: qValues) {
+            sum += Math.pow(Math.E, qValue);
+        }
+
+        for (int i = 0; i < qValues.size(); i++) {
+            softmax.add(Math.pow(Math.E, qValues.get(i)) / sum);
+            softmaxToMino.put(Math.pow(Math.E, qValues.get(i)) / sum, qValueToMino.get(qValues.get(i)));
+        }
+
+        // Sort the list in ascending order
+        softmax.sort((a, b) -> Double.compare(a, b));
+        int index = 0;
+
+        // Choose index 0 with the highest probability, index 1 with the second highest, etc. And the last index with the lowest probability
+        result = softmaxToMino.get(softmax.get(index));
+        
+        
+        return result;
     }
 
     /**
