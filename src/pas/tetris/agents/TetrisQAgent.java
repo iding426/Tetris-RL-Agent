@@ -61,9 +61,9 @@ public class TetrisQAgent
 
         Sequential qFunction = new Sequential();
         qFunction.add(new Dense(numCols, hiddenDim1));
-        qFunction.add(new ReLU());
+        qFunction.add(new Sigmoid());
         qFunction.add(new Dense(hiddenDim1, hiddenDim2));
-        qFunction.add(new ReLU());
+        qFunction.add(new Sigmoid());
         qFunction.add(new Dense(hiddenDim2, outDim));
 
         return qFunction;
@@ -121,6 +121,10 @@ public class TetrisQAgent
             flattenedImage.set(0, i, flattenedImage.get(0, i) / maxHeight);
         }
 
+        if (maxHeight == 0) {
+            return Matrix.zeros(1, cols);
+        }
+
         return flattenedImage;
     }
 
@@ -161,16 +165,6 @@ public class TetrisQAgent
     @Override
     public Mino getExplorationMove(final GameView game)
     {
-        /*
-         * TODO:
-         * -- Get all potentialActions
-         *    -- For each pAction, call getQFunctionInput()
-         *    -- Pass flattened matrix into qFuncition
-         *    -- Feed forwards and store in list
-         * -- Run Softmax
-         * -- Sort List
-         * -- Choose action based on softmax
-         */
 
         Mino result = null;
         List<Double> qValues = new ArrayList<Double>();
@@ -183,6 +177,7 @@ public class TetrisQAgent
 
             try {
                 Matrix qValue = this.getQFunction().forward(input);
+
                 qValues.add(qValue.get(0, 0));
                 qValueToMino.put(qValue.get(0, 0), pAction);
             } catch (Exception e) {
@@ -261,6 +256,7 @@ public class TetrisQAgent
                 }
             }
         }
+        epochCount++;
     }
 
     /**
@@ -299,12 +295,12 @@ public class TetrisQAgent
 
         double height = 0.0;
         // get aggregate height
-        for (int i = 0; i < board.NUM_COLS; i++) {
-            for (int j = 0; j < board.NUM_ROWS; j++) {
+        for (int i = 0; i < Board.NUM_COLS; i++) {
+            for (int j = 0; j < Board.NUM_ROWS; j++) {
                 Block block = board.getBlockAt(i, j);
 
                 if (block != null) {
-                    height += (board.NUM_ROWS - j);
+                    height += (Board.NUM_ROWS - j);
                     break;
                 }
             }
@@ -312,9 +308,9 @@ public class TetrisQAgent
 
         double lines = 0.0;
         // get number of complete lines
-        for (int i = 0; i < board.NUM_ROWS; i++) {
+        for (int i = 0; i < Board.NUM_ROWS; i++) {
             boolean complete = true;
-            for (int j = 0; j < board.NUM_COLS; j++) {
+            for (int j = 0; j < Board.NUM_COLS; j++) {
                 Block block = board.getBlockAt(j, i);
                 if (block == null) {
                     complete = false;
@@ -329,10 +325,10 @@ public class TetrisQAgent
 
         double holes = 0.0;
         // get number of holes. A hole is defined as an empty space such that there is at least one tile in the same column above it.
-        for (int i = 0; i < board.NUM_COLS; i++) {
+        for (int i = 0; i < Board.NUM_COLS; i++) {
             int top = 0;
             int bottom = 1;
-            while (bottom < board.NUM_ROWS) {
+            while (bottom < Board.NUM_ROWS) {
                 Block block = board.getBlockAt(i, top);
                 Block blockBelow = board.getBlockAt(i, bottom);
 
@@ -348,24 +344,24 @@ public class TetrisQAgent
 
         // get bumpiness
         double bumpiness = 0.0;
-        for (int i = 0; i < board.NUM_COLS - 1; i++) {
+        for (int i = 0; i < Board.NUM_COLS - 1; i++) {
             int height1 = 0;
             int height2 = 0;
 
             boolean found1 = false;
             boolean found2 = false;
 
-            for (int j = 0; j < board.NUM_ROWS; j++) {
+            for (int j = 0; j < Board.NUM_ROWS; j++) {
                 Block block1 = board.getBlockAt(i, j);
                 Block block2 = board.getBlockAt(i + 1, j);
 
                 if (block1 != null && !found1) {
-                    height1 = board.NUM_ROWS - j;
+                    height1 = Board.NUM_ROWS - j;
                     found1 = true;
                 }
 
                 if (block2 != null && !found2) {
-                    height2 = board.NUM_ROWS - j;
+                    height2 = Board.NUM_ROWS - j;
                     found2 = true;
                 }
 
@@ -378,18 +374,12 @@ public class TetrisQAgent
         }
 
         currentReward = -0.51 * height + 0.76 * lines - 0.36 * holes - 0.18 * bumpiness;
+        currentReward += game.getScoreThisTurn();
 
         // reward is the change in the fitness function
         double reward = currentReward - previousReward;
 
         previousReward = currentReward;
-
-        // print all the features and the reward
-        System.out.print("Height: " + height);
-        System.out.print(" Lines: " + lines);
-        System.out.print(" Holes: " + holes);
-        System.out.print(" Bumpiness: " + bumpiness);
-        System.out.print(" Reward: " + reward);
 
         return reward;
     }
