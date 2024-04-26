@@ -55,8 +55,8 @@ public class TetrisQAgent
         // in this example, the input to the neural network is the
         // image of the board unrolled into a giant vector
         final int numCols = Board.NUM_COLS;
-        final int hiddenDim1 = numCols + 2; // More information
-        final int hiddenDim2 = numCols - 4; // Condense information
+        final int hiddenDim1 = 64; // More information
+        final int hiddenDim2 = 64; // Condense information
         final int outDim = 1;
 
         Sequential qFunction = new Sequential();
@@ -148,8 +148,10 @@ public class TetrisQAgent
                                  final GameCounter gameCounter)
     {
 
-        double rand = this.getRandom().nextDouble();
-        double prob = 1 / Math.pow(1.02, this.epochCount); // Decrease probability of exploration over time
+        // rand being a random number between 0 and 1
+        double rand = this.random.nextDouble();
+        double b = Math.log(500) / 10000;
+        double prob = Math.exp(-b * this.epochCount);
         return (rand < prob);
     }
 
@@ -290,6 +292,10 @@ public class TetrisQAgent
         And the reward was simply the change in this fitness function.
         */
 
+        if (game.didAgentLose()) {
+            return -10;
+        }
+
         double currentReward = 0.0;
         Board board = game.getBoard();
 
@@ -373,13 +379,19 @@ public class TetrisQAgent
             bumpiness += Math.abs(height1 - height2);
         }
 
-        currentReward = -0.51 * height + 0.76 * lines - 0.36 * holes - 0.18 * bumpiness;
-        currentReward += game.getScoreThisTurn();
+        currentReward = -0.51 * height + 0.76 * lines - 0.36 * holes - 0.18 * bumpiness + game.getScoreThisTurn();
 
         // reward is the change in the fitness function
         double reward = currentReward - previousReward;
 
         previousReward = currentReward;
+
+        // print all the features and the reward
+        // System.out.print("Height: " + height);
+        // System.out.print(" Lines: " + lines);
+        // System.out.print(" Holes: " + holes);
+        // System.out.print(" Bumpiness: " + bumpiness);
+        // System.out.print(" Reward: " + reward);
 
         return reward;
     }
