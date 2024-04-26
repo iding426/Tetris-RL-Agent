@@ -8,6 +8,7 @@ import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Arrays;
 
 // JAVA PROJECT IMPORTS
 import edu.bu.tetris.agents.QAgent;
@@ -55,12 +56,13 @@ public class TetrisQAgent
         // in this example, the input to the neural network is the
         // image of the board unrolled into a giant vector
         final int numCols = Board.NUM_COLS;
+        final int numRows = Board.NUM_ROWS;
         final int hiddenDim1 = 64; // More information
         final int hiddenDim2 = 32; // Condense information
         final int outDim = 1;
 
         Sequential qFunction = new Sequential();
-        qFunction.add(new Dense(numCols, hiddenDim1));
+        qFunction.add(new Dense(numCols + numRows, hiddenDim1));
         qFunction.add(new Sigmoid());
         qFunction.add(new Dense(hiddenDim1, hiddenDim2));
         qFunction.add(new Sigmoid());
@@ -99,32 +101,68 @@ public class TetrisQAgent
         int rows = grayScale.getShape().getNumRows();
         int cols = grayScale.getShape().getNumCols();
 
-        Matrix flattenedImage = Matrix.zeros(1, grayScale.getShape().getNumCols()); // Flattened image will ge the the height for each column
+        Matrix flattenedImage = Matrix.zeros(1, rows + cols); // Flattened image will get the the height for each column and number of "holes" in each row
         int maxHeight = 0; // Current tallest column 
 
-        for (int i = 0; i < cols; i ++) {
+        double[] heights = new double[cols];
+        double[] holes = new double[rows];
+
+        // Find the heights of each column
+        for (int i = 0; i < cols; i++) {
+            // Start at the top and move downwards
             for (int j = 0; j < rows; j++) {
                 if (grayScale.get(i,j) != 0.0) {
+                    // Highest block in the column
+                    int height = 22 - j; 
+                    heights[i] = height;
+                    maxHeight = Math.max(height, maxHeight);
 
-                    // Found top
-                    int height = rows - j;
-                    maxHeight = Math.max(maxHeight, height);
-                    flattenedImage.set(0, i, height);
-
-                    break;
+                    break; 
                 }
             }
         }
 
-        // Loop through matrix and normalize
-        for (int i = 0; i < cols; i++) {
-            flattenedImage.set(0, i, flattenedImage.get(0, i) / maxHeight);
+        // Get the number of holes in each row under maxHeight
+        for (int i = 22 - maxHeight; i < rows; i++) {
+            int count = 0; // Number of holes in this row
+            // We are on row i, now move across the columns 
+            for (int j = 0; j < cols; j++) {
+
+                // There is no block
+                if (grayScale.get(i,j) == 0.0) {
+                    // only increment count if it is actually a hole
+                    if (22 - i < heights[j]) {
+                        count++;
+                    }
+                }
+            }
+
+            holes[i] = count; 
         }
 
-        if (maxHeight == 0) {
-            return Matrix.zeros(1, cols);
+        // Normalize both arrays 
+        for (int i = 0; i < heights.length; i++) {
+            heights[i] = heights[i] / 22;
         }
 
+        for (int i = 0; i < holes.length; i++) { 
+            holes[i] = holes[i] / 10;
+        }
+
+        int index = 0;
+
+        // Move the values to the row vector
+        for (int i = 0; i < heights.length; i++) {
+            flattenedImage.set(0, index, heights[i]);
+            index++;
+        }
+
+        for (int i = 0; i < holes.length; i++) {
+            flattenedImage.set(0, index, holes[i]);
+            index++;
+        }
+
+        System.out.println(flattenedImage);
         return flattenedImage;
     }
 
