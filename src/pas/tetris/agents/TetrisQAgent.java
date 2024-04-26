@@ -56,7 +56,7 @@ public class TetrisQAgent
         // image of the board unrolled into a giant vector
         final int numCols = Board.NUM_COLS;
         final int hiddenDim1 = 64; // More information
-        final int hiddenDim2 = 64; // Condense information
+        final int hiddenDim2 = 32; // Condense information
         final int outDim = 1;
 
         Sequential qFunction = new Sequential();
@@ -205,11 +205,37 @@ public class TetrisQAgent
 
         // Sort the list in ascending order
         softmax.sort((a, b) -> Double.compare(a, b));
+
+        double[] weights = new double[softmax.size()];
+        double totalWeight = 0;
+
+        // Invert the weights based on frequency
+        for (int i = 0; i < softmax.size(); i++) {
+            weights[i] = 1.0 / softmax.get(i);
+            totalWeight += weights[i];
+        }
+
+        for (int i = 0; i < softmax.size(); i++) {
+            weights[i] /= totalWeight;
+        }
+
+        // Cumulative Ranges
+        double[] cumulativeWeights = new double[softmax.size()];
+        cumulativeWeights[0] = weights[0];
+
+        for (int i = 1; i < softmax.size(); i++) {
+            cumulativeWeights[i] = cumulativeWeights[i - 1] + weights[i];
+        }
+
+        double rand = this.random.nextDouble();
+
         int index = 0;
 
-        // Choose index 0 with the highest probability, index 1 with the second highest, etc. And the last index with the lowest probability
+        while (index < softmax.size() && rand > cumulativeWeights[index]) {
+            index++;
+        }
+
         result = softmaxToMino.get(softmax.get(index));
-        
         
         return result;
     }
