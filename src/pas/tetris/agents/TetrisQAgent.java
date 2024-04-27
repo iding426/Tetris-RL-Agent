@@ -11,7 +11,6 @@ import java.util.HashMap;
 
 // JAVA PROJECT IMPORTS
 import edu.bu.tetris.agents.QAgent;
-import edu.bu.tetris.agents.TrainerAgent;
 import edu.bu.tetris.agents.TrainerAgent.GameCounter;
 import edu.bu.tetris.game.Board;
 import edu.bu.tetris.game.Game.GameView;
@@ -34,13 +33,14 @@ public class TetrisQAgent
     extends QAgent
 {
 
+    public static long gameIndex = 0;
+    public static boolean flag = false;  // flag to reset reward
+
     // public static final double EXPLORATION_PROB = 0.05;
 
     private Random random;
     private int epochCount = 1; 
     public static double previousReward = 0.0;
-    public static long gameIndex = 0;
-    public static boolean flag = false;  
 
     public TetrisQAgent(String name)
     {
@@ -53,7 +53,6 @@ public class TetrisQAgent
     @Override
     public Model initQFunction()
     {
-
         // build a single-hidden-layer feedforward network
         // this example will create a 3-layer neural network (1 hidden layer)
         // in this example, the input to the neural network is the
@@ -107,19 +106,20 @@ public class TetrisQAgent
         int rows = grayScale.getShape().getNumRows();
         int cols = grayScale.getShape().getNumCols();
 
-        int[] heights = new int[cols];
-        int[] holes = new int[rows];
-        Matrix flattenedImage = Matrix.zeros(1, rows + cols);
+        // matrix to store closest hole to the top of the column and how many holes are directly below it. Hole is defined as an empty space such that there is at least one tile in the same column above it.
+        Matrix heightsHoles = Matrix.zeros(3, cols);
 
         int maxHeight = 0; // Current tallest column
 
         for (int i = 0; i < cols; i ++) {
             for (int j = 0; j < rows; j++) {
+
+                // // Found top
                 if (grayScale.get(j,i) != 0.0) {
-                    // Highest block in the column
-                    int height = 22 - j; 
-                    heights[i] = height;
-                    maxHeight = Math.max(height, maxHeight);
+
+                    int height = rows - j;
+                    heightsHoles.set(0, i, height);
+                    maxHeight = Math.max(maxHeight, height);
 
                     break;
                 }
@@ -128,47 +128,73 @@ public class TetrisQAgent
             // System.out.println();
         }
 
-        // Get the number of holes in each row under maxHeight
-        for (int i = 22 - maxHeight; i < rows; i++) {
-            int count = 0; // Number of holes in this row
-            // We are on row i, now move across the columns 
-            for (int j = 0; j < cols; j++) {
+        // System.out.println("Max Height: " + maxHeight);
 
-                // There is no block
-                if (grayScale.get(i,j) == 0.0) {
-                    // only increment count if it is actually a hole
-                    if (22 - i < heights[j]) {
-                        count++;
+        // print heightHoles
+        // System.out.println("Heights and Holes: ");
+        // System.out.println(heightsHoles);
+
+        if (maxHeight == 0) {
+            return Matrix.zeros(1, 3 * cols);
+        }
+
+        // Calculate holes
+        for (int i = 0; i < cols; i++) {
+            int top = 0;
+            int bottom = 1;
+            boolean foundFirstHole = false;
+            while (bottom < rows) {
+                if (grayScale.get(top, i) != 0.0 && grayScale.get(bottom, i) == 0.0) {
+                    if (foundFirstHole) {
+                        heightsHoles.set(2, i, heightsHoles.get(2, i) + 1);
+                        bottom++;
+                    } else {
+                        heightsHoles.set(1, i, rows - bottom);
+                        heightsHoles.set(2, i, 1);
+                        bottom++;
+                        foundFirstHole = true;
                     }
+                } else if (grayScale.get(top, i) != 0.0 && grayScale.get(bottom, i) != 0.0 && foundFirstHole) {
+                    break;
+                } else {
+                    top = bottom;
+                    bottom++;
                 }
             }
-
-            holes[i] = count; 
         }
 
-        // Normalize both arrays 
-        for (int i = 0; i < heights.length; i++) {
-            heights[i] = heights[i] / 22;
+        // System.out.println("Heights and Holes before normalize: ");
+        // System.out.println(heightsHoles);
+
+        // Normalize heights and holes
+        for (int i = 0; i < cols; i++) {
+            if (heightsHoles.get(0, i) != 0.0) {
+                heightsHoles.set(0, i, heightsHoles.get(0, i) / rows);
+            }
+
+            if (heightsHoles.get(1, i) != 0.0) {
+                heightsHoles.set(1, i, heightsHoles.get(1, i) / rows);
+            }
+
+            if (heightsHoles.get(2, i) != 0.0) {
+                heightsHoles.set(2, i, heightsHoles.get(2, i) / rows);
+            }
         }
 
-        for (int i = 0; i < holes.length; i++) { 
-            holes[i] = holes[i] / 10;
+        // System.out.println("Heights and Holes: ");
+        // System.out.println(heightsHoles);
+
+        // flatten the matrix
+        try {
+            Matrix flatten = heightsHoles.flatten();
+            return flatten;
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.exit(-1);
         }
 
-        int index = 0;
 
-        // Move the values to the row vector
-        for (int i = 0; i < heights.length; i++) {
-            flattenedImage.set(0, index, heights[i]);
-            index++;
-        }
-
-        for (int i = 0; i < holes.length; i++) {
-            flattenedImage.set(0, index, holes[i]);
-            index++;
-        }
-
-        return flattenedImage;
+        return Matrix.zeros(1, 3 * cols);
     }
 
     /**
@@ -192,12 +218,11 @@ public class TetrisQAgent
     {
         // Update the game index
         if (gameCounter.getCurrentGameIdx() != gameIndex) {
-            System.out.println("RESETING REWARD");
+            // System.out.println("RESETING REWARD");
             previousReward = 0.0;
             gameIndex = gameCounter.getCurrentGameIdx();
             flag = true; 
         }
-
 
         // rand being a random number between 0 and 1
         double rand = this.random.nextDouble();
@@ -481,11 +506,11 @@ public class TetrisQAgent
         previousReward = currentReward;
 
         // print all the features and the reward
-        System.out.println("Height: " + height);
-        System.out.println(" Lines: " + lines);
-        System.out.println(" Holes: " + holes);
-        System.out.println(" Bumpiness: " + bumpiness);
-        System.out.println(" Reward: " + reward);
+        // System.out.println("Height: " + height);
+        // System.out.println(" Lines: " + lines);
+        // System.out.println(" Holes: " + holes);
+        // System.out.println(" Bumpiness: " + bumpiness);
+        // System.out.println(" Reward: " + reward);
 
         return reward;
     }
