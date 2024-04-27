@@ -107,8 +107,9 @@ public class TetrisQAgent
         int rows = grayScale.getShape().getNumRows();
         int cols = grayScale.getShape().getNumCols();
 
-        // matrix to store closest hole to the top of the column and how many holes are directly below it. Hole is defined as an empty space such that there is at least one tile in the same column above it.
-        Matrix heightsHoles = Matrix.zeros(3, cols);
+        int[] heights = new int[cols];
+        int[] holes = new int[rows];
+        Matrix flattenedImage = Matrix.zeros(1, rows + cols);
 
         int maxHeight = 0; // Current tallest column
 
