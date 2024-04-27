@@ -12,6 +12,7 @@ import java.util.Arrays;
 
 // JAVA PROJECT IMPORTS
 import edu.bu.tetris.agents.QAgent;
+import edu.bu.tetris.agents.TrainerAgent;
 import edu.bu.tetris.agents.TrainerAgent.GameCounter;
 import edu.bu.tetris.game.Board;
 import edu.bu.tetris.game.Game.GameView;
@@ -39,6 +40,8 @@ public class TetrisQAgent
     private Random random;
     private int epochCount = 1; 
     public static double previousReward = 0.0;
+    public static long gameIndex = 0;
+    public static boolean flag = false;  
 
     public TetrisQAgent(String name)
     {
@@ -51,6 +54,7 @@ public class TetrisQAgent
     @Override
     public Model initQFunction()
     {
+
         // build a single-hidden-layer feedforward network
         // this example will create a 3-layer neural network (1 hidden layer)
         // in this example, the input to the neural network is the
@@ -111,7 +115,7 @@ public class TetrisQAgent
         for (int i = 0; i < cols; i++) {
             // Start at the top and move downwards
             for (int j = 0; j < rows; j++) {
-                if (grayScale.get(i,j) != 0.0) {
+                if (grayScale.get(j,i) != 0.0) {
                     // Highest block in the column
                     int height = 22 - j; 
                     heights[i] = height;
@@ -162,7 +166,6 @@ public class TetrisQAgent
             index++;
         }
 
-        System.out.println(flattenedImage);
         return flattenedImage;
     }
 
@@ -185,6 +188,14 @@ public class TetrisQAgent
     public boolean shouldExplore(final GameView game,
                                  final GameCounter gameCounter)
     {
+        // Update the game index
+        if (gameCounter.getCurrentGameIdx() != gameIndex) {
+            System.out.println("RESETING REWARD");
+            previousReward = 0.0;
+            gameIndex = gameCounter.getCurrentGameIdx();
+            flag = true; 
+        }
+
 
         // rand being a random number between 0 and 1
         double rand = this.random.nextDouble();
@@ -356,7 +367,8 @@ public class TetrisQAgent
         And the reward was simply the change in this fitness function.
         */
 
-        if (game.didAgentLose()) {
+        if (flag) {
+            flag = false; 
             return -10;
         }
 
@@ -451,11 +463,11 @@ public class TetrisQAgent
         previousReward = currentReward;
 
         // print all the features and the reward
-        // System.out.print("Height: " + height);
-        // System.out.print(" Lines: " + lines);
-        // System.out.print(" Holes: " + holes);
-        // System.out.print(" Bumpiness: " + bumpiness);
-        // System.out.print(" Reward: " + reward);
+        System.out.println("Height: " + height);
+        System.out.println(" Lines: " + lines);
+        System.out.println(" Holes: " + holes);
+        System.out.println(" Bumpiness: " + bumpiness);
+        System.out.println(" Reward: " + reward);
 
         return reward;
     }
