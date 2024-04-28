@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 
 // JAVA PROJECT IMPORTS
@@ -58,9 +59,9 @@ public class TetrisQAgent
         // this example will create a 3-layer neural network (1 hidden layer)
         // in this example, the input to the neural network is the
         // image of the board unrolled into a giant vector
-        final int numCols = Board.NUM_COLS*3;
+        final int numCols = 32;
         final int hiddenDim1 = 64; // More information
-        final int hiddenDim2 = 64; // Condense information
+        final int hiddenDim2 = 32; // Condense information
         final int outDim = 1;
 
         Sequential qFunction = new Sequential();
@@ -69,7 +70,6 @@ public class TetrisQAgent
         qFunction.add(new Dense(hiddenDim1, hiddenDim2));
         qFunction.add(new Sigmoid());
         qFunction.add(new Dense(hiddenDim2, outDim));
-
         return qFunction;
     }
 
@@ -107,8 +107,8 @@ public class TetrisQAgent
         int rows = grayScale.getShape().getNumRows();
         int cols = grayScale.getShape().getNumCols();
 
-        int[] heights = new int[cols];
-        int[] holes = new int[rows];
+        double[] heights = new double[cols];
+        double[] holes = new double[rows];
         Matrix flattenedImage = Matrix.zeros(1, rows + cols);
 
         int maxHeight = 0; // Current tallest column
@@ -145,7 +145,7 @@ public class TetrisQAgent
 
             holes[i] = count; 
         }
-
+        
         // Normalize both arrays 
         for (int i = 0; i < heights.length; i++) {
             heights[i] = heights[i] / 22;
@@ -192,7 +192,7 @@ public class TetrisQAgent
     {
         // Update the game index
         if (gameCounter.getCurrentGameIdx() != gameIndex) {
-            System.out.println("RESETING REWARD");
+            // System.out.println("RESETING REWARD");
             previousReward = 0.0;
             gameIndex = gameCounter.getCurrentGameIdx();
             flag = true; 
@@ -260,12 +260,13 @@ public class TetrisQAgent
         double[] weights = new double[softmax.size()];
         double totalWeight = 0;
 
-        // Invert the weights based on frequency
+        // Get total weight
         for (int i = 0; i < softmax.size(); i++) {
-            weights[i] = 1.0 / softmax.get(i);
+            weights[i] = softmax.get(i);
             totalWeight += weights[i];
         }
 
+        // Weight based on frequency
         for (int i = 0; i < softmax.size(); i++) {
             weights[i] /= totalWeight;
         }
@@ -479,13 +480,6 @@ public class TetrisQAgent
         double reward = currentReward - previousReward;
 
         previousReward = currentReward;
-
-        // print all the features and the reward
-        System.out.println("Height: " + height);
-        System.out.println(" Lines: " + lines);
-        System.out.println(" Holes: " + holes);
-        System.out.println(" Bumpiness: " + bumpiness);
-        System.out.println(" Reward: " + reward);
 
         return reward;
     }
