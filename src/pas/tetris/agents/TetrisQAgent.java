@@ -114,13 +114,11 @@ public class TetrisQAgent
 
         for (int i = 0; i < cols; i ++) {
             for (int j = 0; j < rows; j++) {
-
-                // // Found top
                 if (grayScale.get(j,i) != 0.0) {
-
-                    int height = rows - j;
-                    heightsHoles.set(0, i, height);
-                    maxHeight = Math.max(maxHeight, height);
+                    // Highest block in the column
+                    int height = 22 - j; 
+                    heights[i] = height;
+                    maxHeight = Math.max(height, maxHeight);
 
                     break;
                 }
@@ -169,8 +167,7 @@ public class TetrisQAgent
             index++;
         }
 
-
-        return Matrix.zeros(1, 3 * cols);
+        return flattenedImage;
     }
 
     /**
@@ -482,13 +479,6 @@ public class TetrisQAgent
         double reward = currentReward - previousReward;
 
         previousReward = currentReward;
-
-        // print all the features and the reward
-        System.out.println("Height: " + height);
-        System.out.println(" Lines: " + lines);
-        System.out.println(" Holes: " + holes);
-        System.out.println(" Bumpiness: " + bumpiness);
-        System.out.println(" Reward: " + reward);
 
         return reward;
     }
