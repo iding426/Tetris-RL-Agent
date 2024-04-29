@@ -8,12 +8,12 @@ import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 
 // JAVA PROJECT IMPORTS
 import edu.bu.tetris.agents.QAgent;
-import edu.bu.tetris.agents.TrainerAgent;
 import edu.bu.tetris.agents.TrainerAgent.GameCounter;
 import edu.bu.tetris.game.Board;
 import edu.bu.tetris.game.Game.GameView;
@@ -37,13 +37,14 @@ public class TetrisQAgent
     extends QAgent
 {
 
+    public static long gameIndex = 0;
+    public static boolean flag = false;  // flag to reset reward
+
     // public static final double EXPLORATION_PROB = 0.05;
 
     private Random random;
     private int epochCount = 1; 
     public static double previousReward = 0.0;
-    public static long gameIndex = 0;
-    public static boolean flag = false;  
 
     public TetrisQAgent(String name)
     {
@@ -56,13 +57,13 @@ public class TetrisQAgent
     @Override
     public Model initQFunction()
     {
-
         // build a single-hidden-layer feedforward network
         // this example will create a 3-layer neural network (1 hidden layer)
         // in this example, the input to the neural network is the
         // image of the board unrolled into a giant vector
         final int numCols = 35;
         final int hiddenDim1 = 64; // More information
+        final int hiddenDim2 = 32; // Condense information
         final int hiddenDim2 = 32; // Condense information
         final int outDim = 1;
 
@@ -148,6 +149,7 @@ public class TetrisQAgent
             holes[i] = count; 
         }
         
+        
         // Normalize both arrays 
         for (int i = 0; i < heights.length; i++) {
             heights[i] = heights[i] / 22;
@@ -212,7 +214,6 @@ public class TetrisQAgent
             gameIndex = gameCounter.getCurrentGameIdx();
             flag = true; 
         }
-
 
         // rand being a random number between 0 and 1
         double rand = this.random.nextDouble();
@@ -376,11 +377,14 @@ public class TetrisQAgent
         double totalWeight = 0;
 
         // Get total weight
+        // Get total weight
         for (int i = 0; i < softmax.size(); i++) {
+            weights[i] = softmax.get(i);
             weights[i] = softmax.get(i);
             totalWeight += weights[i];
         }
 
+        // Weight based on frequency
         // Weight based on frequency
         for (int i = 0; i < softmax.size(); i++) {
             weights[i] /= totalWeight;
