@@ -9,6 +9,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 
 // JAVA PROJECT IMPORTS
 import edu.bu.tetris.agents.QAgent;
@@ -17,6 +18,7 @@ import edu.bu.tetris.agents.TrainerAgent.GameCounter;
 import edu.bu.tetris.game.Board;
 import edu.bu.tetris.game.Game.GameView;
 import edu.bu.tetris.game.minos.Mino;
+import edu.bu.tetris.game.minos.Mino.MinoType;
 import edu.bu.tetris.linalg.Matrix;
 import edu.bu.tetris.nn.Model;
 import edu.bu.tetris.nn.LossFunction;
@@ -59,7 +61,7 @@ public class TetrisQAgent
         // this example will create a 3-layer neural network (1 hidden layer)
         // in this example, the input to the neural network is the
         // image of the board unrolled into a giant vector
-        final int numCols = 32;
+        final int numCols = 35;
         final int hiddenDim1 = 64; // More information
         final int hiddenDim2 = 32; // Condense information
         final int outDim = 1;
@@ -109,7 +111,7 @@ public class TetrisQAgent
 
         double[] heights = new double[cols];
         double[] holes = new double[rows];
-        Matrix flattenedImage = Matrix.zeros(1, rows + cols);
+        Matrix flattenedImage = Matrix.zeros(1, rows + cols + 3);
 
         int maxHeight = 0; // Current tallest column
 
@@ -166,6 +168,19 @@ public class TetrisQAgent
         for (int i = 0; i < holes.length; i++) {
             flattenedImage.set(0, index, holes[i]);
             index++;
+        }
+
+        List<Mino.MinoType> nextMinos = game.getNextThreeMinoTypes();
+
+        for (Mino.MinoType minoType: nextMinos) {
+            double value = minoType.ordinal();
+
+            // Normalize 
+            value /= 7;
+
+            flattenedImage.set(0, index, value);
+            index++;
+
         }
 
         return flattenedImage;
@@ -226,6 +241,106 @@ public class TetrisQAgent
 
         for (Mino pAction: game.getFinalMinoPositions()) {
 
+            // Check for T-spin, Double T-Spin, or Tetris, and force it to explore that
+            if (pAction.getType() == MinoType.T) {
+                // Check if this move is a T-Spin
+                // Get the grayScale
+                Matrix grayScale = null;
+
+                try {
+                    grayScale = game.getGrayscaleImage(pAction);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    System.exit(-1);
+                }
+
+                HashSet<Integer> rows = new HashSet<Integer>();
+                // Find the Rows the T-Spin resides in
+                for (int i = 0; i < 22; i++) {
+                    for (int j = 0; j < 10; j++) {
+                        if (grayScale.get(i,j) == 1.0) {
+                            rows.add(i);
+                        }
+                    }
+                }
+
+                int clearCount = 0;
+                // Check to see if the rows are cleared 
+                for (int row: rows) {
+                    boolean flag = true;
+                    for (int col = 0; col < 10; col++) {
+                        if (grayScale.get(row,col) == 0.0) {
+                            flag = false;
+                            break;
+                        }
+                    }
+
+                    if (flag) {
+                        clearCount++;
+                    }
+                }
+
+                // If all rows the T occupies are cleared, then return this move
+                if (clearCount == rows.size()) {
+                    return pAction;
+                }
+
+            } else if (pAction.getType() == MinoType.I) {
+                // Get the grayScale
+                Matrix grayScale = null;
+                try {
+                    grayScale = game.getGrayscaleImage(pAction);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    System.exit(-1);
+                }
+
+                // Look through the grayScale, and find the column with the current piece
+                // We want the piece to be vertical and have blocks around it on the left and right at least 2 blocks high
+                outer:
+                for (int i = 0; i < 22; i++) {
+                    for (int j = 0; j < 10; j++) {
+                        if (grayScale.get(i,j) == 1.0) {
+                            // Check if the piece is vertical
+                             if (i + 1 < 22 && grayScale.get(i + 1,j) == 1.0) {
+                                // Piece is vertical
+                                // Check if we have any sort of tetris (height of at least 2)
+
+                                // See if this move clears at least three lines
+                                int clearCount = 0;
+                                
+                                // Loop through the rows this piece spans 
+                                for (int row = i; row > row + 4; row++) {
+                                    boolean flag = true;
+                                    for (int col = 0; col < 10; col++) {
+                                        // This row is not a clear
+                                        if (grayScale.get(row,col) == 0.0) {
+                                            flag = false; 
+                                            break; 
+                                        }
+                                    }
+
+                                    // Increase the number of cleared rows 
+                                    if (flag) {
+                                        clearCount++;
+                                    }
+                                }
+
+                                // Return the move if it clears atl least 3 lines
+                                if (clearCount >= 3) {
+                                    return pAction;
+                                }
+
+                             } else {
+                                // Break out of both loops
+                                break outer;
+                             }
+                        }
+                    }
+                }
+            }
+
+            // Not a T-Spin or a Tetris, so just use softmax to explore
             Matrix input = this.getQFunctionInput(game, pAction);
 
             try {
@@ -474,7 +589,7 @@ public class TetrisQAgent
             bumpiness += Math.abs(height1 - height2);
         }
 
-        currentReward = -0.51 * height + 0.76 * lines - 0.36 * holes - 0.18 * bumpiness + game.getScoreThisTurn();
+        currentReward = -0.51 * height + 0.76 * lines - 0.36 * holes - 0.18 * bumpiness + (2 * game.getScoreThisTurn());
 
         // reward is the change in the fitness function
         double reward = currentReward - previousReward;
