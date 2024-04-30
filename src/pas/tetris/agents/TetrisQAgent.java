@@ -44,7 +44,7 @@ public class TetrisQAgent
     // public static final double EXPLORATION_PROB = 0.05;
 
     private Random random;
-    private int epochCount = 1900; 
+    private int epochCount = 1; 
     public static double previousReward = 0.0;
 
     public TetrisQAgent(String name)
@@ -311,48 +311,83 @@ public class TetrisQAgent
                     System.exit(-1);
                 }
 
-                // Look through the grayScale, and find the column with the current piece
-                // We want the piece to be vertical and have blocks around it on the left and right at least 2 blocks high
-                outer:
+                HashSet<Integer> rows = new HashSet<>();
+
+                // All of the rows the piece spans
                 for (int i = 0; i < 22; i++) {
                     for (int j = 0; j < 10; j++) {
                         if (grayScale.get(i,j) == 1.0) {
-                            // Check if the piece is vertical
-                             if (i + 1 < 22 && grayScale.get(i + 1,j) == 1.0) {
-                                // Piece is vertical
-                                // Check if we have any sort of tetris (height of at least 2)
-
-                                // See if this move clears at least three lines
-                                int clearCount = 0;
-                                
-                                // Loop through the rows this piece spans 
-                                for (int row = i; row > row + 4; row++) {
-                                    boolean flag = true;
-                                    for (int col = 0; col < 10; col++) {
-                                        // This row is not a clear
-                                        if (grayScale.get(row,col) == 0.0) {
-                                            flag = false; 
-                                            break; 
-                                        }
-                                    }
-
-                                    // Increase the number of cleared rows 
-                                    if (flag) {
-                                        clearCount++;
-                                    }
-                                }
-
-                                // Return the move if it clears at least 3 lines
-                                if (clearCount >= 3) {
-                                    return pAction;
-                                }
-
-                             } else {
-                                // Break out of both loops
-                                break outer;
-                             }
+                            rows.add(i);
                         }
                     }
+                }
+
+                // Count how many rows there are
+                if (rows.size() == 4) {
+                    // Check if this move clears 4 rows
+                    int clearCount = 0;
+
+                    for (int row: rows) {
+                        boolean flag = true;
+                        for (int col = 0; col < 10; col++) {
+                            if (grayScale.get(row, col) == 0.0) {
+                                flag = false;
+                                break;
+                            }
+                        }
+
+                        // There are no empty spaces in the row
+                        if (flag) {
+                            clearCount++;
+                        }
+                    }
+
+                    // If it clears 4 rows, its a tetris so return it
+                    if (clearCount == 4) {
+                        return pAction;
+                    }
+                }
+            } else {
+                // Check if its a perfect clear
+                Matrix grayScale = null;
+                try {
+                    grayScale = game.getGrayscaleImage(pAction);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    System.exit(-1);
+                }
+
+                HashSet<Integer> rows = new HashSet<>();
+
+                for (int i = 0; i < 22; i++) {
+                    for (int j = 0; j < 10; j++) {
+                        if (grayScale.get(i,j) != 0.0) {
+                            rows.add(i);
+                        }
+                    }
+                }
+
+                // Check if all rows are cleared 
+
+                int clearCount = 0;
+                for (int row: rows) {
+                    boolean flag = true;
+
+                    for (int col = 0; col < 10; col++) {
+                        if (grayScale.get(row, col) == 0.0) {
+                            flag = false;
+                            break;
+                        }
+                    }
+
+                    if (flag) {
+                        clearCount++;
+                    }
+                }
+
+                // Every row with a block is cleared
+                if (clearCount == rows.size()) {
+                    return pAction;
                 }
             }
 
@@ -608,7 +643,7 @@ public class TetrisQAgent
             bumpiness += Math.abs(height1 - height2);
         }
 
-        currentReward = -0.51 * height + 0.76 * lines - 0.36 * holes - 0.18 * bumpiness + (5 * game.getScoreThisTurn());
+        currentReward = -0.51 * height + 0.76 * lines - 0.36 * holes - 0.18 * bumpiness + (2 * game.getScoreThisTurn());
 
         // reward is the change in the fitness function
         double reward = currentReward - previousReward;
