@@ -7,8 +7,6 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 
@@ -58,6 +56,7 @@ public class TetrisQAgent
         // this example will create a 3-layer neural network (1 hidden layer)
         // in this example, the input to the neural network is the
         // image of the board unrolled into a giant vector
+        final int numCols = 37;
         final int numCols = 37;
         final int hiddenDim1 = 64; // More information
         final int hiddenDim2 = 32; // Condense information
@@ -740,6 +739,8 @@ public class TetrisQAgent
             }
         }
 
+        // System.out.println("Holes: " + holes);
+
         // get bumpiness
         double bumpiness = 0.0;
         for (int i = 0; i < Board.NUM_COLS - 1; i++) {
@@ -777,6 +778,13 @@ public class TetrisQAgent
         double reward = currentReward - previousReward;
 
         previousReward = currentReward;
+
+        // print all the features and the reward
+        // System.out.println("Height: " + height);
+        // System.out.println(" Lines: " + lines);
+        // System.out.println(" Holes: " + holes);
+        // System.out.println(" Bumpiness: " + bumpiness);
+        // System.out.println(" Reward: " + reward);
 
         return reward;
     }
