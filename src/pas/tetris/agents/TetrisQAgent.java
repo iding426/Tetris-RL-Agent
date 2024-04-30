@@ -12,6 +12,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 
+import edu.bu.battleship.utils.Coordinate;
 // JAVA PROJECT IMPORTS
 import edu.bu.tetris.agents.QAgent;
 import edu.bu.tetris.agents.TrainerAgent.GameCounter;
@@ -43,7 +44,7 @@ public class TetrisQAgent
     // public static final double EXPLORATION_PROB = 0.05;
 
     private Random random;
-    private int epochCount = 1; 
+    private int epochCount = 1900; 
     public static double previousReward = 0.0;
 
     public TetrisQAgent(String name)
@@ -63,7 +64,6 @@ public class TetrisQAgent
         // image of the board unrolled into a giant vector
         final int numCols = 35;
         final int hiddenDim1 = 64; // More information
-        final int hiddenDim2 = 32; // Condense information
         final int hiddenDim2 = 32; // Condense information
         final int outDim = 1;
 
@@ -241,7 +241,6 @@ public class TetrisQAgent
         HashMap<Double, Mino> softmaxToMino = new HashMap<Double, Mino>();
 
         for (Mino pAction: game.getFinalMinoPositions()) {
-
             // Check for T-spin, Double T-Spin, or Tetris, and force it to explore that
             if (pAction.getType() == MinoType.T) {
                 // Check if this move is a T-Spin
@@ -255,36 +254,52 @@ public class TetrisQAgent
                     System.exit(-1);
                 }
 
-                HashSet<Integer> rows = new HashSet<Integer>();
+                HashSet<Coordinate> tCoords = new HashSet<>();
+                HashSet<Integer> rows = new HashSet<>();
                 // Find the Rows the T-Spin resides in
                 for (int i = 0; i < 22; i++) {
                     for (int j = 0; j < 10; j++) {
                         if (grayScale.get(i,j) == 1.0) {
+                            tCoords.add(new Coordinate(j,i));
                             rows.add(i);
                         }
                     }
                 }
 
+                // Check for overhang
+                boolean flag = false;
+                for (Coordinate coord: tCoords) {
+                    // Check if there is a 0.5 above one of the pieces
+                    int row = coord.getYCoordinate();
+                    int col = coord.getXCoordinate();
+
+                    if (row - 1 >= 0 && grayScale.get(row - 1, col) == 0.5) {
+                        flag = true;
+                        break;
+                    }
+                }
+
+                // Has to clear lines to get points
                 int clearCount = 0;
-                // Check to see if the rows are cleared 
                 for (int row: rows) {
-                    boolean flag = true;
+                    boolean flag2 = true;
                     for (int col = 0; col < 10; col++) {
-                        if (grayScale.get(row,col) == 0.0) {
-                            flag = false;
+                        if (grayScale.get(row, col) == 0.0) {
+                            flag2 = false;
                             break;
                         }
                     }
 
-                    if (flag) {
+                    // Row cleared
+                    if (flag2) {
                         clearCount++;
                     }
                 }
 
-                // If all rows the T occupies are cleared, then return this move
-                if (clearCount == rows.size()) {
+                if (flag && clearCount >= 1) {
                     return pAction;
                 }
+                
 
             } else if (pAction.getType() == MinoType.I) {
                 // Get the grayScale
@@ -327,7 +342,7 @@ public class TetrisQAgent
                                     }
                                 }
 
-                                // Return the move if it clears atl least 3 lines
+                                // Return the move if it clears at least 3 lines
                                 if (clearCount >= 3) {
                                     return pAction;
                                 }
@@ -593,7 +608,7 @@ public class TetrisQAgent
             bumpiness += Math.abs(height1 - height2);
         }
 
-        currentReward = -0.51 * height + 0.76 * lines - 0.36 * holes - 0.18 * bumpiness + (2 * game.getScoreThisTurn());
+        currentReward = -0.51 * height + 0.76 * lines - 0.36 * holes - 0.18 * bumpiness + (5 * game.getScoreThisTurn());
 
         // reward is the change in the fitness function
         double reward = currentReward - previousReward;
