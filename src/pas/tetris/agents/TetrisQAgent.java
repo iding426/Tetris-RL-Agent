@@ -10,7 +10,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 
-import edu.bu.battleship.utils.Coordinate;
+import edu.bu.tetris.utils.Coordinate;
 // JAVA PROJECT IMPORTS
 import edu.bu.tetris.agents.QAgent;
 import edu.bu.tetris.agents.TrainerAgent.GameCounter;
@@ -36,9 +36,11 @@ public class TetrisQAgent
     extends QAgent
 {
     // public static final double EXPLORATION_PROB = 0.05;
+    private boolean gFlag = false;
+    private long indexCount = 0;
 
     private Random random;
-    private int epochCount = 1; 
+    private int epochCount = 1995; 
     public static double previousReward = 0.0;
 
     public TetrisQAgent(String name)
@@ -56,8 +58,7 @@ public class TetrisQAgent
         // this example will create a 3-layer neural network (1 hidden layer)
         // in this example, the input to the neural network is the
         // image of the board unrolled into a giant vector
-        final int numCols = 37;
-        final int numCols = 37;
+        final int numCols = 35;
         final int hiddenDim1 = 64; // More information
         final int hiddenDim2 = 32; // Condense information
         final int outDim = 1;
@@ -105,209 +106,82 @@ public class TetrisQAgent
         int rows = grayScale.getShape().getNumRows();
         int cols = grayScale.getShape().getNumCols();
 
-        // matrix to store closest hole to the top of the column and how many holes are directly below it. Hole is defined as an empty space such that there is at least one tile in the same column above it.
-        Matrix heightsHoles = Matrix.zeros(3, cols);
+        double[] heights = new double[cols];
+        double[] holes = new double[rows];
+        Matrix flattenedImage = Matrix.zeros(1, rows + cols + 3);
 
         int maxHeight = 0; // Current tallest column
 
         for (int i = 0; i < cols; i ++) {
             for (int j = 0; j < rows; j++) {
-
-                // // Found top
                 if (grayScale.get(j,i) != 0.0) {
-
-                    int height = rows - j;
-                    heightsHoles.set(0, i, height);
-                    maxHeight = Math.max(maxHeight, height);
+                    // Highest block in the column
+                    int height = 22 - j; 
+                    heights[i] = height;
+                    maxHeight = Math.max(height, maxHeight);
 
                     break;
                 }
 
             }
+            // System.out.println();
         }
 
-        if (maxHeight == 0) {
-            return Matrix.zeros(1, 33);
-        }
-
-        // Calculate holes
-        for (int i = 0; i < cols; i++) {
-            int top = 0;
-            int bottom = 1;
-            boolean foundFirstHole = false;
-            while (bottom < rows) {
-                if (grayScale.get(top, i) != 0.0 && grayScale.get(bottom, i) == 0.0) {
-                    if (foundFirstHole) {
-                        heightsHoles.set(2, i, heightsHoles.get(2, i) + 1);
-                        bottom++;
-                    } else {
-                        heightsHoles.set(1, i, rows - bottom);
-                        heightsHoles.set(2, i, 1);
-                        bottom++;
-                        foundFirstHole = true;
-                    }
-                } else if (grayScale.get(top, i) != 0.0 && grayScale.get(bottom, i) != 0.0 && foundFirstHole) {
-                    break;
-                } else {
-                    top = bottom;
-                    bottom++;
-                }
-            }
-        }
-
-
-        // get next 3 types of minos
-        List<Mino.MinoType> nextMinos = game.getNextThreeMinoTypes();
-        Matrix minos = Matrix.zeros(1, 3);
-
-        // check length of List
-        if (nextMinos.size() == 3) {
-            minos.set(0, 0, ((double) nextMinos.get(0).ordinal() + 1.0) / 8.0);
-            minos.set(0, 1, ((double) nextMinos.get(1).ordinal() + 1.0) / 8.0);
-            minos.set(0, 2, ((double) nextMinos.get(2).ordinal() + 1.0) / 8.0);
-        } else if (nextMinos.size() == 2) {
-            minos.set(0, 0, ((double) nextMinos.get(0).ordinal() + 1.0) / 8.0);
-            minos.set(0, 1, ((double) nextMinos.get(1).ordinal() + 1.0) / 8.0);
-        } else if (nextMinos.size() == 1) {
-            minos.set(0, 0, ((double) nextMinos.get(0).ordinal() + 1.0) / 8.0);
-        }
-
-        // get total amount of holes by looping through the matrix again
-        double totalHoles = 0.0;
-        for (int i = 0; i < cols; i++) {
-            for (int j = 0; j < rows; j++) {
-                if (grayScale.get(j, i) == 0.0) {
-                    totalHoles++;
-                }
-            }
-        }
-
-        //get amount of lines cleared and detect if how many of those lines are next to each other
-        double linesCleared = 0.0;
-        for (int i = 0; i < rows; i++) {
-            boolean flag = true;
+        // Get the number of holes in each row under maxHeight
+        for (int i = 22 - maxHeight; i < rows; i++) {
+            int count = 0; // Number of holes in this row
+            // We are on row i, now move across the columns 
             for (int j = 0; j < cols; j++) {
-                if (grayScale.get(i, j) == 0.0) {
-                    flag = false;
-                    break;
-                }
-            }
 
-            if (flag) {
-                linesCleared++;
-            }
-        }
-
-        // check if it is a T-spin
-        boolean tSpin = false;
-        if (potentialAction.getType() == MinoType.T) {
-            // Check if this move is a T-Spin
-            // Get the grayScale
-
-            HashSet<Coordinate> tCoords = new HashSet<>();
-            HashSet<Integer> rowsTspin = new HashSet<>();
-            // Find the Rows the T-Spin resides in
-            for (int i = 0; i < 22; i++) {
-                for (int j = 0; j < 10; j++) {
-                    if (grayScale.get(i,j) == 1.0) {
-                        tCoords.add(new Coordinate(j,i));
-                        rowsTspin.add(i);
+                // There is no block
+                if (grayScale.get(i,j) == 0.0) {
+                    // only increment count if it is actually a hole
+                    if (22 - i < heights[j]) {
+                        count++;
                     }
                 }
             }
 
-            // Check for overhang
-            boolean flag = false;
-            for (Coordinate coord: tCoords) {
-                // Check if there is a 0.5 above one of the pieces
-                int row = coord.getYCoordinate();
-                int col = coord.getXCoordinate();
-
-                if (row - 1 >= 0 && grayScale.get(row - 1, col) == 0.5) {
-                    flag = true;
-                    break;
-                }
-            }
-
-            // Has to clear lines to get points
-            int clearCount = 0;
-            for (int row: rowsTspin) {
-                boolean flag2 = true;
-                for (int col = 0; col < 10; col++) {
-                    if (grayScale.get(row, col) == 0.0) {
-                        flag2 = false;
-                        break;
-                    }
-                }
-
-                // Row cleared
-                if (flag2) {
-                    clearCount++;
-                }
-            }
-
-            if (flag && clearCount >= 1) {
-                tSpin = true;
-            }
+            holes[i] = count; 
+        }
+        
+        
+        // Normalize both arrays 
+        for (int i = 0; i < heights.length; i++) {
+            heights[i] = heights[i] / 22;
         }
 
-        // check if it is a Tetris
-        boolean tetris = false;
-        if (potentialAction.getType() == MinoType.I && linesCleared >= 2) {
-            tetris = true;
+        for (int i = 0; i < holes.length; i++) { 
+            holes[i] = holes[i] / 10;
         }
 
-        // Normalize the values
-        totalHoles = totalHoles / 220.0;
-        linesCleared = linesCleared / 22.0;
+        int index = 0;
 
-        // Normalize heights and holes
-        for (int i = 0; i < cols; i++) {
-            if (heightsHoles.get(0, i) != 0.0) {
-                heightsHoles.set(0, i, heightsHoles.get(0, i) / rows);
-            }
-
-            if (heightsHoles.get(1, i) != 0.0) {
-                heightsHoles.set(1, i, heightsHoles.get(1, i) / rows);
-            }
-
-            if (heightsHoles.get(2, i) != 0.0) {
-                heightsHoles.set(2, i, heightsHoles.get(2, i) / rows);
-            }
+        // Move the values to the row vector
+        for (int i = 0; i < heights.length; i++) {
+            flattenedImage.set(0, index, heights[i]);
+            index++;
         }
 
-
-        Matrix combined = Matrix.zeros(1, 37);
-        Matrix flatten = null;
-        Matrix flattenMinos = null;
-
-        // flatten the matrix
-        try {
-            flatten = heightsHoles.flatten();
-            flattenMinos = minos.flatten();
-        } catch (Exception e) {
-            e.printStackTrace();
-            System.exit(-1);
+        for (int i = 0; i < holes.length; i++) {
+            flattenedImage.set(0, index, holes[i]);
+            index++;
         }
 
-        // loop through the matrix and add the values to the combined matrix
-        for (int i = 0; i < 3 * cols; i++) {
-            combined.set(0, i, flatten.get(0, i));
+        List<Mino.MinoType> nextMinos = game.getNextThreeMinoTypes();
+
+        for (Mino.MinoType minoType: nextMinos) {
+            double value = minoType.ordinal();
+
+            // Normalize 
+            value /= 7;
+
+            flattenedImage.set(0, index, value);
+            index++;
+
         }
 
-        for (int i = 0; i < 3; i++) {
-            combined.set(0, 3 * cols + i, flattenMinos.get(0, i));
-        }
-
-        combined.set(0, 3 * cols + 3, totalHoles);
-        combined.set(0, 3 * cols + 4, linesCleared);
-        combined.set(0, 3 * cols + 5, tSpin ? 1.0 : 0.0);
-        combined.set(0, 3 * cols + 6, tetris ? 1.0 : 0.0);
-
-        // System.out.println("Combined: ");
-        // System.out.println(combined);
-
-        return combined;
+        return flattenedImage;
     }
 
     /**
@@ -329,9 +203,14 @@ public class TetrisQAgent
     public boolean shouldExplore(final GameView game,
                                  final GameCounter gameCounter)
     {
+        if (gameCounter.getCurrentGameIdx() != indexCount) {
+            indexCount = gameCounter.getCurrentGameIdx();
+            previousReward = 0.0;
+            gFlag = true; 
+        }
         // rand being a random number between 0 and 1
         double rand = this.random.nextDouble();
-        double b = Math.log(500) / 10000;
+        double b = Math.log(500) / 3000;
         double prob = Math.exp(-b * this.epochCount);
         return (rand < prob);
     }
@@ -355,94 +234,149 @@ public class TetrisQAgent
         HashMap<Double, Mino> softmaxToMino = new HashMap<Double, Mino>();
 
         for (Mino pAction: game.getFinalMinoPositions()) {
-            // Check for T-spin, Double T-Spin, or Tetris, and force it to explore that
-            if (pAction.getType() == MinoType.T) {
-                // Check if this move is a T-Spin
-                // Get the grayScale
-                Matrix grayScale = null;
+            if (epochCount >= 1000) {
+                // Check for T-spin, Double T-Spin, or Tetris, and force it to explore that
+                if (pAction.getType() == MinoType.T) {
+                    // Check if this move is a T-Spin
+                    // Get the grayScale
+                    Matrix grayScale = null;
 
-                try {
-                    grayScale = game.getGrayscaleImage(pAction);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    System.exit(-1);
-                }
+                    try {
+                        grayScale = game.getGrayscaleImage(pAction);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        System.exit(-1);
+                    }
 
-                HashSet<Coordinate> tCoords = new HashSet<>();
-                HashSet<Integer> rows = new HashSet<>();
-                // Find the Rows the T-Spin resides in
-                for (int i = 0; i < 22; i++) {
-                    for (int j = 0; j < 10; j++) {
-                        if (grayScale.get(i,j) == 1.0) {
-                            tCoords.add(new Coordinate(j,i));
-                            rows.add(i);
+                    HashSet<Coordinate> tCoords = new HashSet<>();
+                    HashSet<Integer> rows = new HashSet<>();
+                    // Find the Rows the T-Spin resides in
+                    outer:
+                    for (int i = 0; i < 22; i++) {
+                        for (int j = 0; j < 10; j++) {
+                            if (grayScale.get(i,j) == 1.0) {
+                                tCoords.add(new Coordinate(j,i));
+                                rows.add(i);
+
+                                if (tCoords.size() == 4) {
+                                    break outer;
+                                }
+                            }
                         }
                     }
-                }
 
-                // Check for overhang
-                boolean flag = false;
-                for (Coordinate coord: tCoords) {
-                    // Check if there is a 0.5 above one of the pieces
-                    int row = coord.getYCoordinate();
-                    int col = coord.getXCoordinate();
+                    // Check for overhang
+                    boolean flag = false;
+                    for (Coordinate coord: tCoords) {
+                        // Check if there is a 0.5 above one of the pieces
+                        int row = coord.getYCoordinate();
+                        int col = coord.getXCoordinate();
 
-                    if (row - 1 >= 0 && grayScale.get(row - 1, col) == 0.5) {
-                        flag = true;
-                        break;
-                    }
-                }
-
-                // Has to clear lines to get points
-                int clearCount = 0;
-                for (int row: rows) {
-                    boolean flag2 = true;
-                    for (int col = 0; col < 10; col++) {
-                        if (grayScale.get(row, col) == 0.0) {
-                            flag2 = false;
+                        if (row - 1 >= 0 && grayScale.get(row - 1, col) == 0.5) {
+                            flag = true;
                             break;
                         }
                     }
 
-                    // Row cleared
-                    if (flag2) {
-                        clearCount++;
-                    }
-                }
+                    // Has to clear lines to get points
+                    int clearCount = 0;
+                    for (int row: rows) {
+                        boolean flag2 = true;
+                        for (int col = 0; col < 10; col++) {
+                            if (grayScale.get(row, col) == 0.0) {
+                                flag2 = false;
+                                break;
+                            }
+                        }
 
-                if (flag && clearCount >= 1) {
-                    return pAction;
-                }
-                
-
-            } else if (pAction.getType() == MinoType.I) {
-                // Get the grayScale
-                Matrix grayScale = null;
-                try {
-                    grayScale = game.getGrayscaleImage(pAction);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    System.exit(-1);
-                }
-
-                HashSet<Integer> rows = new HashSet<>();
-
-                // All of the rows the piece spans
-                for (int i = 0; i < 22; i++) {
-                    for (int j = 0; j < 10; j++) {
-                        if (grayScale.get(i,j) == 1.0) {
-                            rows.add(i);
+                        // Row cleared
+                        if (flag2) {
+                            clearCount++;
                         }
                     }
-                }
 
-                // Count how many rows there are
-                if (rows.size() == 4) {
-                    // Check if this move clears 4 rows
+                    if (flag && clearCount >= 1) {
+                        return pAction;
+                    }
+                    
+
+                } else if (pAction.getType() == MinoType.I) {
+                    // Get the grayScale
+                    Matrix grayScale = null;
+                    try {
+                        grayScale = game.getGrayscaleImage(pAction);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        System.exit(-1);
+                    }
+
+                    HashSet<Integer> rows = new HashSet<>();
+
+                    // All of the rows the piece spans
+                    outer:
+                    for (int i = 0; i < 22; i++) {
+                        for (int j = 0; j < 10; j++) {
+                            if (grayScale.get(i,j) == 1.0) {
+                                rows.add(i);
+                                if (rows.size() == 4) {
+                                    break outer;
+                                }
+                            }
+                        }
+                    }
+
+                    // Count how many rows there are
+                    if (rows.size() == 4) {
+                        // Check if this move clears 4 rows
+                        int clearCount = 0;
+
+                        for (int row: rows) {
+                            boolean flag = true;
+                            for (int col = 0; col < 10; col++) {
+                                if (grayScale.get(row, col) == 0.0) {
+                                    flag = false;
+                                    break;
+                                }
+                            }
+
+                            // There are no empty spaces in the row
+                            if (flag) {
+                                clearCount++;
+                            }
+                        }
+
+                        // If it clears 4 rows, its a tetris so return it
+                        if (clearCount == 4) {
+                            return pAction;
+                        }
+                    }
+                } else {
+                    // Check if its a perfect clear
+                    Matrix grayScale = null;
+                    try {
+                        grayScale = game.getGrayscaleImage(pAction);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        System.exit(-1);
+                    }
+
+                    HashSet<Integer> rows = new HashSet<>();
+
+                    for (int i = 0; i < 22; i++) {
+                        for (int j = 0; j < 10; j++) {
+                            if (grayScale.get(i,j) != 0.0) {
+                                rows.add(i);
+                                break;
+                            }
+                        }
+                    }
+
+                    // Check if all rows are cleared 
+
                     int clearCount = 0;
-
                     for (int row: rows) {
                         boolean flag = true;
+
                         for (int col = 0; col < 10; col++) {
                             if (grayScale.get(row, col) == 0.0) {
                                 flag = false;
@@ -450,58 +384,15 @@ public class TetrisQAgent
                             }
                         }
 
-                        // There are no empty spaces in the row
                         if (flag) {
                             clearCount++;
                         }
                     }
 
-                    // If it clears 4 rows, its a tetris so return it
-                    if (clearCount == 4) {
+                    // Every row with a block is cleared
+                    if (clearCount == rows.size()) {
                         return pAction;
                     }
-                }
-            } else {
-                // Check if its a perfect clear
-                Matrix grayScale = null;
-                try {
-                    grayScale = game.getGrayscaleImage(pAction);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    System.exit(-1);
-                }
-
-                HashSet<Integer> rows = new HashSet<>();
-
-                for (int i = 0; i < 22; i++) {
-                    for (int j = 0; j < 10; j++) {
-                        if (grayScale.get(i,j) != 0.0) {
-                            rows.add(i);
-                        }
-                    }
-                }
-
-                // Check if all rows are cleared 
-
-                int clearCount = 0;
-                for (int row: rows) {
-                    boolean flag = true;
-
-                    for (int col = 0; col < 10; col++) {
-                        if (grayScale.get(row, col) == 0.0) {
-                            flag = false;
-                            break;
-                        }
-                    }
-
-                    if (flag) {
-                        clearCount++;
-                    }
-                }
-
-                // Every row with a block is cleared
-                if (clearCount == rows.size()) {
-                    return pAction;
                 }
             }
 
@@ -653,26 +544,15 @@ public class TetrisQAgent
         And the reward was simply the change in this fitness function.
         */
 
+        // Check if new game 
+        if (gFlag) {
+            previousReward = 0.0;
+            gFlag = false;
+            return -10.0;
+        }
+
         double currentReward = 0.0;
         Board board = game.getBoard();
-
-        // Check if a new game started
-        boolean flag = true;
-
-        // Loop over whole board
-        for (int i = 0; i < 10; i++) {
-            for (int j = 0; j < 22; j++) {
-                if (board.getBlockAt(i, j) != null) {
-                    flag = false;
-                    break;
-                }
-            }
-        }
-
-        if (flag && game.getTotalScore() == 0) {
-            // Reset the previous reward
-            previousReward = 0.0; 
-        }
 
         // System.out.println(Board.NUM_ROWS);
 
