@@ -1,6 +1,6 @@
 # Tetris Q-Agent
 
-This project implements a Q-learning agent to play Tetris using a neural network for the Q-function approximation. The agent is designed to learn and improve its performance over time by training on the game states and rewards.
+This project implements a Q-learning agent to play Tetris using a neural network for the Q-function approximation. The agent is designed to learn and improve its performance over time by training on the game states and rewards. With implementation in TetrisQAgent.java file.
 
 ## Table of Contents 
 - [Agent Design](#agent-design)
