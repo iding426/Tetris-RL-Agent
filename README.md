@@ -22,7 +22,7 @@ This project implements a Q-learning agent to play Tetris using a neural network
 - These values are all normalized before being fed into the Neural Network.
 
 ## Exploration Strategy
-- The model uses a decaying probability when deciding when to explore based on the current stage of its training.
+- The model uses greedy-epsilon function to decay the exploration probability based on the current stage of its training.
 - In exploration cases we imposed human interference, by forcing the agent to explore "high value" moves like T-Spins, multiclears, and tetris.
 - If no "high value" moves are availble the agent uses a softmax function to weigh moves relatively and using those weights to probabilistically choose a move.
 
